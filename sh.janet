@@ -1,8 +1,7 @@
 (import process)
 
-(defn shell-quote1
+(defn- shell-quote1
   [arg]
-
   (def buf (buffer/new (* (length arg) 2)))
   (buffer/push-string buf "'")
   (each c arg
@@ -13,31 +12,75 @@
   (string buf))
 
 (defn shell-quote
+  ``
+  Concatenate a list of strings into
+  one string that something like `sh -c` can accept.
+
+  Example Usage:
+  > (sh/shell-quote ["hello" "there ' \""])
+  "'hello' 'there '\\'' \"'"
+  ``
   [args]
   (string/join (map shell-quote1 args) " "))
 
-(defn pipeline [commands &opt shell]
+(defn pipeline
+  ``
+  Turn a list of commands into a shell command that
+  pipe the output of a command to the next command.
+  Each command is a list of strings.
+
+  Example Usage:
+  > (sh/pipeline [["tar" "-C" dir "-cf" "-" "."] ["gzip"]])
+  @["/bin/sh" "-c" "'tar' '-C' 'dir' '-cf' '-' '.' | 'gzip'"]
+  > (sh/$$ (sh/pipeline [["tar" "-C" dir "-cf" "-" "."] ["gzip"]]))
+  ``
+  [commands &opt shell]
   (default shell ["/bin/sh" "-c"])
-  (array/concat (array ;shell) (string/join (interpose "|" (map shell-quote commands)) " ")))
+  (array/concat (array ;shell)
+                (string/join (interpose "|" (map shell-quote commands)) " ")))
 
-# just convenience
-(def run process/run)
+(def run
+  "This is the same as process/run. This exists for convenience."
+  process/run)
 
-(defn $ [args &keys k]
+(defn $
+  ``
+  It takes the same arguments that process/run takes and executes a command.
+  It throws an error if exit code is non-zero.
+  ``
+  [args &keys k]
   (def exit-code (process/run args ;(flatten (pairs k))))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
   nil)
 
-(defn $? [args &keys k]
+(defn $?
+  ``
+  It takes the same arguments that process/run takes and executes a command.
+  If the exit code is zero, return true.
+  If the exit code is not zero, return false.
+  ``
+  [args &keys k]
   (zero? (process/run args ;(flatten (pairs k)))))
 
 (defn $$? [args &keys k]
+  ``
+  It takes the same arguments that process/run takes and executes a command.
+  It returns [buf true] if the exit code is 0.
+  It returns [buf false] if the exit code is not 0.
+  buf is a buffer that contains stdout of the launched process.
+  ``
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
   [buf (zero? (process/run args :redirects redirects ;(flatten (pairs k))))])
 
 (defn $$ [args &keys k]
+  ``
+  It takes the same arguments that process/run takes and executes a command.
+  If the exit code is not 0, it throws an error.
+  If the exit code is 0, it returns a buffer that contains
+  stdout of the launched process.
+  ``
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
   (def exit-code (process/run args :redirects redirects ;(flatten (pairs k))))
@@ -46,12 +89,21 @@
   buf)
 
 (defn $$_ [args &keys k]
+  ``
+  It takes the same arguments that proces/run takes and executes a command.
+  If the exit code is not 0, it throws an error.
+  If the exit code is 0, it returns a buffer that contains
+  stdout of the launched process with trailing whitespaces removed.
+
+  A newline (\n), a carrige return (\r), and a space are considered as
+  a whitespace.
+  ``
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
   (def exit-code (process/run args :redirects redirects ;(flatten (pairs k))))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
-  
+
   # trim trailing whitespace
   (defn should-trim? [c]
     (or (= c 32)

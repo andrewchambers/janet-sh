@@ -13,8 +13,9 @@
 
 (defn shell-quote
   ``
-  Concatenate a list of strings into
-  one string that something like `sh -c` can accept.
+  Concatenate a list of strings shell quoted
+  string such that (sh/run ["sh" "-c" STR]) will treat
+  each list argument as a command argument.
 
   Example Usage:
   > (sh/shell-quote ["hello" "there ' \""])
@@ -45,7 +46,7 @@
 
 (defn $
   ``
-  It takes the same arguments that process/run takes and executes a command.
+  '$ takes the same arguments that process/run takes and executes a command.
   It throws an error if exit code is non-zero.
   ``
   [args &keys k]
@@ -56,16 +57,20 @@
 
 (defn $?
   ``
-  It takes the same arguments that process/run takes and executes a command.
+  '$? takes the same arguments that process/run takes and executes a command.
   If the exit code is zero, return true.
   If the exit code is not zero, return false.
+
+  Example usage:
+
+  > (when (sh/$? ["rm" dir]) (print "success"))
   ``
   [args &keys k]
   (zero? (process/run args ;(flatten (pairs k)))))
 
 (defn $$? [args &keys k]
   ``
-  It takes the same arguments that process/run takes and executes a command.
+  $$? takes the same arguments that process/run takes and executes a command.
   It returns [buf true] if the exit code is 0.
   It returns [buf false] if the exit code is not 0.
   buf is a buffer that contains stdout of the launched process.
@@ -76,7 +81,7 @@
 
 (defn $$ [args &keys k]
   ``
-  It takes the same arguments that process/run takes and executes a command.
+  $$ takes the same arguments that process/run takes and executes a command.
   If the exit code is not 0, it throws an error.
   If the exit code is 0, it returns a buffer that contains
   stdout of the launched process.

@@ -50,7 +50,7 @@
   It throws an error if exit code is non-zero.
   ``
   [args &keys k]
-  (def exit-code (process/run args ;(flatten (pairs k))))
+  (def exit-code (process/run args ;(kvs k)))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
   nil)
@@ -66,7 +66,7 @@
   > (when (sh/$? ["rm" dir]) (print "success"))
   ``
   [args &keys k]
-  (zero? (process/run args ;(flatten (pairs k)))))
+  (zero? (process/run args ;(kvs k))))
 
 (defn $$? [args &keys k]
   ``
@@ -77,7 +77,7 @@
   ``
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  [buf (zero? (process/run args :redirects redirects ;(flatten (pairs k))))])
+  [buf (zero? (process/run args :redirects redirects ;(kvs k)))])
 
 (defn $$ [args &keys k]
   ``
@@ -88,7 +88,7 @@
   ``
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def exit-code (process/run args :redirects redirects ;(flatten (pairs k))))
+  (def exit-code (process/run args :redirects redirects ;(kvs k)))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
   buf)
@@ -105,7 +105,7 @@
   ``
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def exit-code (process/run args :redirects redirects ;(flatten (pairs k))))
+  (def exit-code (process/run args :redirects redirects ;(kvs k)))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
 

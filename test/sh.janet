@@ -1,4 +1,4 @@
-(import "../sh" :as sh)
+(import sh)
 
 (defmacro fail [] '(error "fail"))
 
@@ -8,23 +8,32 @@
 (when (first (protect (sh/$ ["false"])))
   (fail))
 
-(unless (= (string (sh/$$ ["echo" "hello world!"])) "hello world!\n")
+(unless (= (sh/$$ ["echo" "hello world!"]) "hello world!\n")
   (fail))
 
-(unless (= (string (sh/$$_ ["echo" "hello world!"])) "hello world!")
+(unless (= (sh/$$_ ["echo" "hello world!"]) "hello world!")
   (fail))
 
-(unless (= (string (sh/$$_ ["echo" "hello world!   "])) "hello world!")
+(unless (= (sh/$$_ ["echo" "hello world!   "]) "hello world!")
   (fail))
 
-(unless (= (string (sh/$$_ ["echo" "   "])) "")
+(unless (= (sh/$$_ ["echo" "   "]) "")
   (fail))
 
 (unless (sh/$? ["true"])
   (fail))
 
-(unless (= ["foo\n" true] (freeze (sh/$$? ["echo" "foo"])))
+(unless (= ["foo\n" true] (sh/$$? ["echo" "foo"]))
   (fail))
 
-(unless (= (string (sh/$$ (sh/pipeline [["echo" "foo\nbar\nbar"] ["sort" "-u"]]))) "bar\nfoo\n")
+(unless (= (sh/$$ (sh/pipeline [["echo" "foo\nbar\nbar"] ["sort" "-u"]])) "bar\nfoo\n")
+  (fail))
+
+(unless (= ["project.janet"] (tuple ;(sh/glob "project.jan*")))
+  (fail))
+
+(unless (= ["notexists*"] (tuple ;(sh/glob "notexists*")))
+  (fail))
+
+(unless (= [] (tuple ;(sh/glob "notexists*" :x)))
   (fail))

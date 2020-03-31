@@ -1,4 +1,5 @@
 (import process)
+(import _sh :prefix "" :export true)
 
 (defn- shell-quote1
   [arg]
@@ -74,20 +75,21 @@
 (defn $$?
   ```
   $$? takes the same arguments that process/run takes and executes a command.
-  It returns [buf true] if the exit code is 0.
-  It returns [buf false] if the exit code is not 0.
-  buf is a buffer that contains stdout of the launched process.
+  It returns [out true] if the exit code is 0.
+  It returns [out false] if the exit code is not 0.
+  out is a string that contains stdout of the launched process.
   ```
   [args &keys k]
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  [buf (zero? (process/run args :redirects redirects ;(kvs k)))])
+  (def ok (zero? (process/run args :redirects redirects ;(kvs k))))
+  [(string buf) ok])
 
 (defn $$
   ```
   $$ takes the same arguments that process/run takes and executes a command.
   If the exit code is not 0, it throws an error.
-  If the exit code is 0, it returns a buffer that contains
+  If the exit code is 0, it returns a string that contains
   stdout of the launched process.
   ```
   [args &keys k]
@@ -96,13 +98,13 @@
   (def exit-code (process/run args :redirects redirects ;(kvs k)))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
-  buf)
+  (string buf))
 
 (defn $$_
   ```
   $$_ takes the same arguments that proces/run takes and executes a command.
   If the exit code is not 0, it throws an error.
-  If the exit code is 0, it returns a buffer that contains
+  If the exit code is 0, it returns a string that contains
   stdout of the launched process with trailing whitespaces removed.
 
   A newline (\n), a carrige return (\r), and a space are considered as
@@ -128,5 +130,5 @@
   (when (not (should-trim? c))
     (buffer/push-byte buf c))
 
-  buf)
+  (string buf))
 

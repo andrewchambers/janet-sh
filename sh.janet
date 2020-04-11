@@ -82,7 +82,7 @@
   [args &keys k]
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def ok (zero? (process/run args :redirects redirects ;(kvs k))))
+  (def ok (zero? (process/run args ;(kvs k) :redirects redirects)))
   [(string buf) ok])
 
 (defn $$
@@ -95,7 +95,7 @@
   [args &keys k]
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def exit-code (process/run args :redirects redirects ;(kvs k)))
+  (def exit-code (process/run args ;(kvs k) :redirects redirects))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
   (string buf))
@@ -113,7 +113,7 @@
   [args &keys k]
   (def buf (buffer/new 0))
   (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def exit-code (process/run args :redirects redirects ;(kvs k)))
+  (def exit-code (process/run args ;(kvs k) :redirects redirects))
   (unless (zero? exit-code)
     (error (string "command failed with exit code " exit-code)))
 

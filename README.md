@@ -16,11 +16,11 @@
 (when (sh/$? ["true"])
   (print "cool!"))
 
-# shell helpers
+# pipelines
+(sh/$ '[sort] : '[uniq])
 
-(sh/shell-quote ["hello" "there ' \""])
-"'hello' 'there '\\'' \"'"
+# pipeline matching
+(match (sh/run '[yes] : '[head -n5])
+  [_ 0] :ok)
 
-(sh/pipeline [["ls"] ["sort" "-u"]])
-@["/bin/sh" "-c" "'ls' | 'sort' '-u'"] # pass this to a run function.
 ```

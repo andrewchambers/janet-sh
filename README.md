@@ -1,6 +1,6 @@
 # janet-sh
 
-## Quick example
+## Quick examples
 
 ```
 (import sh)
@@ -17,7 +17,7 @@
   (print "cool!"))
 
 # pipelines
-(sh/$ ~[cat ,path] '[sort] : '[uniq])
+(sh/$ ~[cat ,path] : '[sort] : '[uniq])
 
 # pipeline matching
 (match (sh/run '[yes] : '[head -n5])

@@ -1,121 +1,165 @@
 (import process)
+(import _process) # A bit naughty to take the private functions from process
+                  # but the projects are developed in lockstep.
 (import _sh :prefix "" :export true)
 
-(defn- shell-quote1
-  [arg]
-  (def buf (buffer/new (* (length arg) 2)))
-  (buffer/push-string buf "'")
-  (each c arg
-    (if (= c (comptime ("'" 0)))
-      (buffer/push-string buf "'\\''")
-      (buffer/push-byte buf c)))
-  (buffer/push-string buf "'")
-  (string buf))
+(defn- run-pipeline
+  [input-specs &opt extra-redirects]
 
-(defn shell-quote
+  (default extra-redirects [])
+  
+  (unless (indexed? (first input-specs))
+    (error (string/format "expected arguments to be array or tuple, got %v" (first input-specs))))
+
+  (def specs @[@[(first input-specs)]])
+  (loop [i :range [1 (length input-specs)]]
+    (match (in input-specs i)
+     :
+        (array/push specs @[])
+      next
+        (array/push (last specs) next)))
+
+  (def procs @[])
+  (var error-cleanup-files @[])
+  (def finish @[])
+  (def buf-mapping @{})
+
+  (defn coerce-file [f]
+    (cond 
+      (buffer? f)
+        (if-let [tmpf (get buf-mapping f)]
+          (_process/dup tmpf)
+          (do
+            (def tmpf (file/temp))
+            (put buf-mapping f tmpf)
+            (array/push finish
+              (fn []
+                (file/seek tmpf :set 0)
+                (file/read tmpf :all f)
+                (file/close tmpf)))
+            tmpf))
+      f))
+
+  (defn coerce-redirect [[f1 f2]]
+    (cond
+      (= f1 stdin)
+      [f1 f2] # It seems wrong to handle stdin specially,
+              # but I'm not sure of a way around the issue that 
+              # if we redirect stdout/stderr to a buffer we want to append to the buffer.
+              # if we redirect stdin to a buffer, we want to write the buffer.
+      [(coerce-file f1) (coerce-file f2)]))
+
+  (defn adjust-redirects
+    [proc-spec new-redirects]
+    (def proc-args (get proc-spec 0))
+    (def proc-kwargs ((fn [_ &keys k] k) ;proc-spec))
+    (def redirects
+      (if-let [redirects (proc-kwargs :redirects)]
+        (array/concat @[] redirects new-redirects)
+        new-redirects))
+    [proc-args ;(kvs (merge proc-kwargs {:redirects (map coerce-redirect redirects)}))])
+
+  (defn pipe []
+    (def pipes (process/pipe))
+    (array/concat error-cleanup-files pipes)
+    pipes)
+  
+  (defer (each f finish (f))
+  (edefer (do
+            (each p error-cleanup-files (file/close p))
+            (each p procs (:close p)))
+    (if (= (length specs) 1)
+      (array/push procs (process/spawn ;(adjust-redirects (specs 0) extra-redirects)))
+      (do
+        (var [rp wp] (pipe))
+        
+        (def first-spec (adjust-redirects (first specs) [[stdout wp]]))
+        (array/push procs (process/spawn ;first-spec))
+        (file/close wp)
+
+        (loop [i :range [1 (dec (length specs))]]
+          (def [new-rp new-wp] (pipe))
+          (def cur-spec (adjust-redirects (specs i) [[stdin rp] [stdout new-wp]]))
+          (array/push procs (process/spawn ;cur-spec))
+          (file/close rp)
+          (file/close new-wp)
+          (set rp new-rp))
+
+        (def last-spec (adjust-redirects (last specs) [[stdin rp] ;extra-redirects]))
+        (array/push procs (process/spawn ;last-spec))
+        (file/close rp)))
+    
+    (map process/wait procs))))
+
+(defn run
   ```
-  Concatenate a list of strings into shell quoted string (STR)
-  such that (sh/run ["sh" "-c" STR]) will treat
-  each list argument as a command argument.
+  Take a set of process specs, separated by : and form
+  A shell pipeline. Returns a tuple of exit codes.
 
-  Example Usage:
 
-  > (sh/shell-quote ["hello" "there ' \""])
-  "'hello' 'there '\\'' \"'"
+  : Is used as the pipe operator as | is reserved in janet for
+  short-fn forms.
+
+  Example usage:
+
+    (sh/run ~[tar -cvpf .] : ~[sort -u])
+    (sh/run ~[ls] :start-dir "/tmp")
+    (match (sh/run ["yes"] : ["head" "-n5"])
+      [_ 0]
+        (print "success!")
+      (error "failed!"))
   ```
-  [args]
-  (string/join (map shell-quote1 args) " "))
-
-(defn pipeline
-  ```
-  Turn a list of commands into a shell command that
-  pipe the output of a command to the next command.
-  Each command is a list of strings.
-
-  Example Usage:
-
-  > (sh/pipeline [["tar" "-C" dir "-cf" "-" "."] ["gzip"]])
-  @["/bin/sh" "-c" "'tar' '-C' 'dir' '-cf' '-' '.' | 'gzip'"]
-
-  > (sh/$$ (sh/pipeline [["tar" "-C" dir "-cf" "-" "."] ["gzip"]]))
-  ```
-  [commands &opt shell]
-  (default shell ["/bin/sh" "-c"])
-  (array/concat (array ;shell)
-                (string/join (interpose "|" (map shell-quote commands)) " ")))
-
-(def run
-  "This is the same as process/run. This exists for convenience."
-  process/run)
+  [& specs]
+  (run-pipeline specs))
 
 (defn $
   ```
-  $ takes the same arguments that process/run takes and executes a command.
-  It throws an error if exit code is non-zero.
+  Shorthand for sh/run and raise an error if any commands failed. Similar
+  to bash -e -o pipefail for those familiar.
   ```
-  [args &keys k]
-  (def exit-code (process/run args ;(kvs k)))
-  (unless (zero? exit-code)
-    (error (string "command failed with exit code " exit-code)))
+  [& specs]
+  (def exit-codes (run-pipeline specs))
+  (unless (all zero? exit-codes)
+    (error (string/format "pipeline failed with exit codes %j" exit-codes)))
   nil)
 
 (defn $?
   ```
-  $? takes the same arguments that process/run takes and executes a command.
-  If the exit code is zero, return true.
-  If the exit code is not zero, return false.
+  $? takes the same arguments that sh/run takes and executes the pipeline.
+  Returns true if all commands in the pipeline succeeded, false otherwise.
 
   Example usage:
 
-  > (when (sh/$? ["rm" dir]) (print "success"))
+  > (when (sh/$? ["rm" ;(sh/glob "*")]) (print "success"))
   ```
-  [args &keys k]
-  (zero? (process/run args ;(kvs k))))
-
-(defn $$?
-  ```
-  $$? takes the same arguments that process/run takes and executes a command.
-  It returns [out true] if the exit code is 0.
-  It returns [out false] if the exit code is not 0.
-  out is a string that contains stdout of the launched process.
-  ```
-  [args &keys k]
-  (def buf (buffer/new 0))
-  (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def ok (zero? (process/run args ;(kvs k) :redirects redirects)))
-  [(string buf) ok])
+  [& specs]
+  (all zero? (run-pipeline specs)))
 
 (defn $$
   ```
-  $$ takes the same arguments that process/run takes and executes a command.
-  If the exit code is not 0, it throws an error.
+  $$ takes the same arguments that sh/run takes and executes a pipeline.
   If the exit code is 0, it returns a string that contains
-  stdout of the launched process.
+  stdout of the launched process. Otherwise raises an error.
   ```
-  [args &keys k]
-  (def buf (buffer/new 0))
-  (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def exit-code (process/run args ;(kvs k) :redirects redirects))
-  (unless (zero? exit-code)
-    (error (string "command failed with exit code " exit-code)))
+  [& specs]
+  (def buf @"")
+  (def extra-redirects [[stdout buf]])
+  (def exit-codes (run-pipeline specs extra-redirects))
+  (unless (all zero? exit-codes)
+    (error (string/format "pipeline failed with exit codes %j" exit-codes)))
+
   (string buf))
 
 (defn $$_
   ```
-  $$_ takes the same arguments that proces/run takes and executes a command.
-  If the exit code is not 0, it throws an error.
-  If the exit code is 0, it returns a string that contains
-  stdout of the launched process with trailing whitespaces removed.
-
-  A newline (\n), a carrige return (\r), and a space are considered as
-  a whitespace.
+  Like sh/$$, but trims trailing whitespace, this is what /bin/sh often does by default.
   ```
-  [args &keys k]
-  (def buf (buffer/new 0))
-  (def redirects (tuple ;(get k :redirects []) [stdout buf]))
-  (def exit-code (process/run args ;(kvs k) :redirects redirects))
-  (unless (zero? exit-code)
-    (error (string "command failed with exit code " exit-code)))
+  [& specs]
+  (def buf @"")
+  (def extra-redirects [[stdout buf]])
+  (def exit-codes (run-pipeline specs extra-redirects))
+  (unless (all zero? exit-codes)
+    (error (string/format "pipeline failed with exit codes %j" exit-codes)))
 
   # trim trailing whitespace
   (defn should-trim? [c]

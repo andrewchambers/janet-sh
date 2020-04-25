@@ -120,7 +120,7 @@
   [& specs]
   (def exit-codes (run-pipeline specs))
   (unless (all zero? exit-codes)
-    (error (string/format "pipeline failed with exit codes %j" exit-codes)))
+    (error (string/format "command(s) failed with exit codes %j" exit-codes)))
   nil)
 
 (defn $?
@@ -146,7 +146,7 @@
   (def extra-redirects [[stdout buf]])
   (def exit-codes (run-pipeline specs extra-redirects))
   (unless (all zero? exit-codes)
-    (error (string/format "pipeline failed with exit codes %j" exit-codes)))
+    (error (string/format "command(s) failed with exit codes %j" exit-codes)))
 
   (string buf))
 
@@ -159,7 +159,7 @@
   (def extra-redirects [[stdout buf]])
   (def exit-codes (run-pipeline specs extra-redirects))
   (unless (all zero? exit-codes)
-    (error (string/format "pipeline failed with exit codes %j" exit-codes)))
+    (error (string/format "command(s) failed with exit codes %j" exit-codes)))
 
   # trim trailing whitespace
   (defn should-trim? [c]

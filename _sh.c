@@ -3,12 +3,6 @@
 #include <glob.h>
 #include <errno.h>
 
-#define panic_errno(NAME, e)                                                   \
-  do {                                                                         \
-    janet_setdyn("errno", janet_wrap_integer(e));                              \
-    janet_panicf(NAME ": %s (errno=%d)", strerror(e), e);                      \
-  } while (0)
-
 static Janet glob_(int32_t argc, Janet *argv) {
     glob_t g;
 
@@ -33,7 +27,7 @@ static Janet glob_(int32_t argc, Janet *argv) {
     }
 
     if (rc != 0)
-        panic_errno("glob", errno);
+        janet_panicf("glob: %s", strerror(errno));
 
     char **p = g.gl_pathv;
     JanetArray *a = janet_array(g.gl_pathc);

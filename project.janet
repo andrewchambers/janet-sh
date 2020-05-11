@@ -5,7 +5,7 @@
   :url "https://github.com/andrewchambers/janet-sh"
   :repo "git+https://github.com/andrewchambers/janet-sh.git"
   :dependencies [
-    "https://github.com/andrewchambers/janet-process.git"
+    "https://github.com/andrewchambers/janet-posix-spawn.git"
    ])
 
 (declare-native

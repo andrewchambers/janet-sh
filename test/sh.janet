@@ -1,55 +1,86 @@
-(import sh)
+(import ../sh)
 
-(defmacro fail [] '(error "fail"))
+(def out-buf @"")
 
-(unless (first (protect (sh/$ ["true"])))
-  (fail))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["cat" :< [stdin "hello"] :> [stdout out-buf]])))
+(assert (deep= @"hello" out-buf))
 
-(when (first (protect (sh/$ ["false"])))
-  (fail))
+(assert 
+  (all zero?
+    (sh/run*
+      ["echo" "-n" "a" :^ "b" :^ 123 :> [stdout out-buf]])))
+(assert (deep= @"ab123" out-buf))
 
-(unless (= (sh/$$ ["echo" "hello world!"]) "hello world!\n")
-  (fail))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["cat" :< "hello" :> out-buf])))
+(assert (deep= @"hello" out-buf))
 
-(unless (= (sh/$$_ ["echo" "hello world!"]) "hello world!")
-  (fail))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["cat" :< [stdin @"abc"]]
+      ["cat"]
+      ["rev" :> [stdout out-buf]])))
+(assert (deep= @"cba" out-buf))
 
-(unless (= (sh/$$_ ["echo" "hello world!   "]) "hello world!")
-  (fail))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["cat" :< [stdin @"abc"]]
+      ["rev"]
+      ["rev" :> [stdout out-buf]])))
+(assert (deep= @"abc" out-buf))
 
-(unless (= (sh/$$_ ["echo" "   "]) "")
-  (fail))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["echo" "-n" "foo" :> [stdout out-buf]])))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["echo" "-n" "foo" :>> [stdout out-buf]])))
 
-(unless (sh/$? ["true"])
-  (fail))
+(assert (deep= @"foofoo" out-buf))
 
-(unless (= (sh/$$ ["echo" "foo\nbar\nbar"] : ["sort" "-u"]) "bar\nfoo\n")
-  (fail))
+(buffer/clear out-buf)
+(assert 
+  (all zero?
+    (sh/run* 
+      ["echo" "hello" :> [stdout :null]])))
+(assert (deep= @"" out-buf))
 
-(def out @"")
-(sh/run ["janet" "-e"
-         "(print `hello`)
-          (file/flush stdout)
-          (eprint `world`)"]
-        :redirects [[stdout out] [stderr out]])
-(unless (= (string out) "hello\nworld\n")
-  (fail))
+(buffer/clear out-buf)
+(assert 
+  (all zero?
+    (sh/run* 
+      ["sh" "-c" "echo abc >&2" :>> [stderr out-buf]]
+      ["sh" "-c" "echo def >&2" :>> [stderr out-buf]])))
+(assert (= (length out-buf) 8))
 
-(match (sh/run ["yes"] : ["cat"] : ["head" "-n5"] :redirects [[stdout :null]])
-  [129 129 0] nil
-  _ (fail))
+(assert 
+  (all zero?
+    (sh/run* 
+      ["sh" "-c" "echo abc >&2" :> [stderr out-buf]]
+      ["sh" "-c" "echo def >&2" :>> [stderr out-buf]])))
+(assert (= (length out-buf) 8))
 
-# At least run some of the error path code, even though its hard to test.
-(protect 
-  (sh/run ["yes"] : ["cat"] : ["cat"] : [123] : ["head" "-n5"]))
 
-# Globbing.
+(sh/$ echo hello > ,out-buf)
+(assert (deep= out-buf @"hello\n"))
 
-(unless (= ["project.janet"] (tuple ;(sh/glob "project.jan*")))
-  (fail))
+(assert (= (sh/$$ echo hello)
+           "hello\n"))
 
-(unless (= ["notexists*"] (tuple ;(sh/glob "notexists*")))
-  (fail))
+(assert (= (sh/$$_ echo hello)
+           "hello"))
 
-(unless (= [] (tuple ;(sh/glob "notexists*" :x)))
-  (fail))
+(assert (sh/$? true))
+(assert (not (sh/$? false)))
+
+(assert (= (sh/$$_ echo ;[1 2 3])
+           "1 2 3"))

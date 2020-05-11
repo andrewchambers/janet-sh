@@ -1,178 +1,262 @@
-(import process)
-(import _process) # A bit naughty to take the private functions from process
-                  # but the projects are developed in lockstep.
+(import posix-spawn)
 (import _sh :prefix "" :export true)
 
-(defn- run-pipeline
-  [input-specs &opt extra-redirects]
-
-  (default extra-redirects [])
-  
-  (unless (indexed? (first input-specs))
-    (error (string/format "expected arguments to be array or tuple, got %v" (first input-specs))))
-
-  (def specs @[@[(first input-specs)]])
-  (loop [i :range [1 (length input-specs)]]
-    (match (in input-specs i)
-     :
-        (array/push specs @[])
-      next
-        (array/push (last specs) next)))
-
+(defn run*
+  [& specs]
+  # All procs in pipeline
   (def procs @[])
-  (var error-cleanup-files @[])
+  # List of functions run after spawn calls.
+  (def post-spawn @[])
+  # List of functions run, even on error.
   (def finish @[])
   (def buf-mapping @{})
+  
+  (defn buf-to-out-file
+    [buf-mapping buf]
+    (if-let [tmpf (get buf-mapping buf)]
+      tmpf
+      (do
+        (def tmpf (file/temp))
+        (put buf-mapping buf tmpf)
+        (array/push finish
+          (fn []
+            (file/seek tmpf :set 0)
+            (file/read tmpf :all buf)
+            (file/close tmpf)))
+        tmpf)))
 
-  (defn coerce-file [f]
+  (defn coerce-file [op f]
     (cond 
       (buffer? f)
-        (if-let [tmpf (get buf-mapping f)]
-          (_process/dup tmpf)
-          (do
-            (def tmpf (file/temp))
-            (put buf-mapping f tmpf)
-            (array/push finish
-              (fn []
-                (file/seek tmpf :set 0)
-                (file/read tmpf :all f)
-                (file/close tmpf)))
-            tmpf))
+        (case op
+          :>
+            (do
+              (buffer/clear f)
+              (buf-to-out-file buf-mapping f))
+          :>>
+            (buf-to-out-file buf-mapping f)
+          :<
+            (do
+              (def tmpf (file/temp))
+              (file/write tmpf f)
+              (file/flush tmpf)
+              (file/seek tmpf :set 0)
+              (def closef |(file/close tmpf))
+              (array/push post-spawn closef)
+              (array/push finish closef)
+              tmpf)
+          (error (string/format "unsupported redirect %p %p" op (type f))))
+      (string? f)
+        (case op
+          :<
+            (do
+              (def tmpf (file/temp))
+              (file/write tmpf f)
+              (file/flush tmpf)
+              (file/seek tmpf :set 0)
+              (def closef |(file/close tmpf))
+              (array/push post-spawn closef)
+              (array/push finish closef)
+              tmpf)
+          (error (string/format "unsupported redirect %p %p" op (type f))))
+      (= f :null)
+        (do
+          (def nullf (file/open "/dev/null" :wb+))
+          (def closef |(file/close nullf))
+          (array/push post-spawn closef)
+          (array/push finish closef)
+          nullf)
       f))
 
-  (defn coerce-redirect [[f1 f2]]
-    (cond
-      (= f1 stdin)
-      [f1 f2] # It seems wrong to handle stdin specially,
-              # but I'm not sure of a way around the issue that 
-              # if we redirect stdout/stderr to a buffer we want to append to the buffer.
-              # if we redirect stdin to a buffer, we want to write the buffer.
-      [(coerce-file f1) (coerce-file f2)]))
-
-  (defn adjust-redirects
-    [proc-spec new-redirects]
-    (def proc-args (get proc-spec 0))
-    (def proc-kwargs ((fn [_ &keys k] k) ;proc-spec))
-    (def redirects
-      (if-let [redirects (proc-kwargs :redirects)]
-        (array/concat @[] redirects new-redirects)
-        new-redirects))
-    [proc-args ;(kvs (merge proc-kwargs {:redirects (map coerce-redirect redirects)}))])
+  (defn add-redirect [file-actions op a b]
+    (def a (or a (if (= op :<) stdin stdout)))
+    (case op
+      :>
+        (array/push file-actions [:dup2 (coerce-file :> b) a])
+      :>> 
+        (array/push file-actions [:dup2 (coerce-file :>> b) a])
+      :<
+        (array/push file-actions [:dup2 (coerce-file :< b) a])
+      (error (string/format "unsupported redirect %p" op))))
 
   (defn pipe []
-    (def pipes (process/pipe))
-    (array/concat error-cleanup-files pipes)
+    (def pipes (posix-spawn/pipe))
+    (array/push finish |(each p pipes (file/close p)))
     pipes)
-  
+
+  (defn parse-spec
+    [spec]
+    (var cur-op nil)
+    (def args @[])
+    (def file-actions @[])
+    (var state :start)
+    (def q (reverse spec))
+    (while (not (empty? q))
+      (case state
+        :start
+          (match (array/pop q)
+            (arg (or (string? arg) (symbol? arg)))
+              (array/push args arg)
+            (arg (or (number? arg) (boolean? arg)))
+              (array/push args (string arg))
+            (rop (or (= rop :>) (= rop :>>) (= rop :<)))
+              (do
+                (set cur-op rop)
+                (set state :redir))
+            :^
+             (do
+               (set state :concat))
+            a
+              (error (string/format "unsupported argument %m" a)))
+        :redir
+          (do
+            (match (array/pop q)
+              [a b]
+                (add-redirect file-actions cur-op a b)
+              [b]
+                (add-redirect file-actions cur-op nil b)
+              b
+                (add-redirect file-actions cur-op nil b)
+              (error "redirects requires one or two targets"))
+            (set state :start))
+        :concat
+          (match (array/pop q)
+            (arg (or (string? arg) (symbol? arg) (number? arg)))
+              (do
+                # It may be worth batching them up to do the concat all at once.
+                (array/push args (string (array/pop args) arg))
+                (set state :start))
+            a
+              (error (string/format "can only concatinate strings symbols or numbers, not %v" a)))
+        (error nil)))
+    (cond state
+      :start
+        nil
+      :concat
+        (error "concat without right hand side")
+      :redir
+        (error "redirect without targets")
+      (error "command parse in unexpected state"))
+    [args file-actions])
+
+  (defn spawn-spec
+    [spec]
+    (def [args file-actions] (parse-spec spec))
+    (array/push procs (posix-spawn/spawn2 args {:file-actions file-actions})))
+
   (defer (each f finish (f))
-  (edefer (do
-            (each p error-cleanup-files (file/close p))
-            (each p procs (:close p)))
-    (if (= (length specs) 1)
-      (array/push procs (process/spawn ;(adjust-redirects (specs 0) extra-redirects)))
-      (do
-        (var [rp wp] (pipe))
-        
-        (def first-spec (adjust-redirects (first specs) [[stdout wp]]))
-        (array/push procs (process/spawn ;first-spec))
-        (file/close wp)
+    (edefer (each p procs (posix-spawn/close p))
+      (if (= (length specs) 1)
+        (spawn-spec (first specs))
+        (do
+          (var [rp wp] (pipe))
+          
+          # Start of pipeline
+          (spawn-spec (tuple ;(first specs) :> [stdout wp]))
+          (file/close wp)
 
-        (loop [i :range [1 (dec (length specs))]]
-          (def [new-rp new-wp] (pipe))
-          (def cur-spec (adjust-redirects (specs i) [[stdin rp] [stdout new-wp]]))
-          (array/push procs (process/spawn ;cur-spec))
-          (file/close rp)
-          (file/close new-wp)
-          (set rp new-rp))
+          # Pipeline middle
+          (loop [i :range [1 (dec (length specs))]]
+            (def [new-rp new-wp] (pipe))
+            (def spec (specs i))
+            (spawn-spec (tuple ;(specs i) :< [stdin rp] :> [stdout new-wp]))
+            (file/close rp)
+            (file/close new-wp)
+            (set rp new-rp))
 
-        (def last-spec (adjust-redirects (last specs) [[stdin rp] ;extra-redirects]))
-        (array/push procs (process/spawn ;last-spec))
-        (file/close rp)))
-    
-    (map process/wait procs))))
+          # Pipeline end.
+          (spawn-spec (tuple ;(last specs) :< [stdin rp]))
+          (file/close rp)))
+      
+      (each f post-spawn (f))
+      (map posix-spawn/wait procs))))
 
-(defn run
-  ```
-  Take a set of process specs, separated by : and form
-  A shell pipeline. Returns a tuple of exit codes.
+(defn- collect-proc-specs
+  [forms]
+  (def specs @[@[]])
+  (def q (reverse forms))
+  (while (not (empty? q))
+    (def f (array/pop q))
+    (cond
+      (tuple? f)
+        (case (f 0)
+          'unquote
+            (array/push (last specs) (f 1))
+          'short-fn
+            (do
+              (array/push specs @[])
+              (array/push q (f 1)))
+          (array/push (last specs) f))
+      (or (= f '>) (= f '>>) (= f '<) (= f '^))
+        (array/push (last specs) (keyword f))
+      (symbol? f)
+        (array/push (last specs) (tuple 'quote f))
+      (or (number? f) (boolean? f))
+        (array/push (last specs) (string f))
+      (array/push (last specs) f)))
+  specs)
 
+(defmacro run
+  [& args]
+  (def specs (collect-proc-specs args))
+  (tuple run* ;specs))
 
-  : Is used as the pipe operator as | is reserved in janet for
-  short-fn forms.
-
-  Example usage:
-
-    (sh/run ~[tar -cvpf .] : ~[sort -u])
-    (sh/run ~[ls] :start-dir "/tmp")
-    (match (sh/run ["yes"] : ["head" "-n5"])
-      [_ 0]
-        (print "success!")
-      (error "failed!"))
-  ```
+(defn $?*
   [& specs]
-  (run-pipeline specs))
+  (def exit (run* ;specs))
+  (all zero? exit))
 
-(defn $
-  ```
-  Shorthand for sh/run and raise an error if any commands failed. Similar
-  to bash -e -o pipefail for those familiar.
-  ```
+(defmacro $?
+  [& args]
+  (def specs (collect-proc-specs args))
+  (tuple $?* ;specs))
+
+(def- emsg "command %p failed, exit code %j")
+
+(defn $*
   [& specs]
-  (def exit-codes (run-pipeline specs))
-  (unless (all zero? exit-codes)
-    (error (string/format "command(s) failed with exit codes %j" exit-codes)))
+  (def exit (run* ;specs))
+  (unless (all zero? exit)
+    (error (string/format emsg specs exit)))
   nil)
 
-(defn $?
-  ```
-  $? takes the same arguments that sh/run takes and executes the pipeline.
-  Returns true if all commands in the pipeline succeeded, false otherwise.
+(defmacro $
+  [& args]
+  (def specs (collect-proc-specs args))
+  (tuple $* ;specs))
 
-  Example usage:
-
-  > (when (sh/$? ["rm" ;(sh/glob "*")]) (print "success"))
-  ```
+(defn $$*
   [& specs]
-  (all zero? (run-pipeline specs)))
+  (def out @"")
+  (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
+  (unless (all zero? exit)
+    (error (string/format emsg specs exit)))
+  (string out))
 
-(defn $$
-  ```
-  $$ takes the same arguments that sh/run takes and executes a pipeline.
-  If the exit code is 0, it returns a string that contains
-  stdout of the launched process. Otherwise raises an error.
-  ```
+(defmacro $$
+  [& args]
+  (def specs (collect-proc-specs args))
+  (tuple $$* ;specs))
+
+(defn $$_*
   [& specs]
-  (def buf @"")
-  (def extra-redirects [[stdout buf]])
-  (def exit-codes (run-pipeline specs extra-redirects))
-  (unless (all zero? exit-codes)
-    (error (string/format "command(s) failed with exit codes %j" exit-codes)))
-
-  (string buf))
-
-(defn $$_
-  ```
-  Like sh/$$, but trims trailing whitespace, this is what /bin/sh often does by default.
-  ```
-  [& specs]
-  (def buf @"")
-  (def extra-redirects [[stdout buf]])
-  (def exit-codes (run-pipeline specs extra-redirects))
-  (unless (all zero? exit-codes)
-    (error (string/format "command(s) failed with exit codes %j" exit-codes)))
-
-  # trim trailing whitespace
+  (def out @"")
+  (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
+  (unless (all zero? exit)
+    (error (string/format emsg specs exit)))
   (defn should-trim? [c]
     (or (= c 32)
         (= c 13)
         (= c 10)))
-
   (var c 10)
-  (while (and (not (zero? (length buf))) (should-trim? c))
-    (set c (buf (dec (length buf))))
-    (buffer/popn buf 1))
+  (while (and (not (zero? (length out))) (should-trim? c))
+    (set c (out (dec (length out))))
+    (buffer/popn out 1))
   (when (not (should-trim? c))
-    (buffer/push-byte buf c))
+    (buffer/push-byte out c))
+  (string out))
 
-  (string buf))
-
+(defmacro $$_
+  [& args]
+  (def specs (collect-proc-specs args))
+  (tuple $$_* ;specs))

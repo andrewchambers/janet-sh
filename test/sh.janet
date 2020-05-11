@@ -73,14 +73,14 @@
 (sh/$ echo hello > ,out-buf)
 (assert (deep= out-buf @"hello\n"))
 
-(assert (= (sh/$$ echo hello)
+(assert (= (sh/$< echo hello)
            "hello\n"))
 
-(assert (= (sh/$$_ echo hello)
+(assert (= (sh/$<_ echo hello)
            "hello"))
 
 (assert (sh/$? true))
 (assert (not (sh/$? false)))
 
-(assert (= (sh/$$_ echo ;[1 2 3])
+(assert (= (sh/$<_ echo ;[1 2 3])
            "1 2 3"))

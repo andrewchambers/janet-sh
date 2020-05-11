@@ -225,7 +225,7 @@
   (def specs (collect-proc-specs args))
   (tuple $* ;specs))
 
-(defn $$*
+(defn $<*
   [& specs]
   (def out @"")
   (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
@@ -233,12 +233,12 @@
     (error (string/format emsg specs exit)))
   (string out))
 
-(defmacro $$
+(defmacro $<
   [& args]
   (def specs (collect-proc-specs args))
-  (tuple $$* ;specs))
+  (tuple $<* ;specs))
 
-(defn $$_*
+(defn $<_*
   [& specs]
   (def out @"")
   (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
@@ -256,7 +256,7 @@
     (buffer/push-byte out c))
   (string out))
 
-(defmacro $$_
+(defmacro $<_
   [& args]
   (def specs (collect-proc-specs args))
-  (tuple $$_* ;specs))
+  (tuple $<_* ;specs))

@@ -211,7 +211,7 @@
   (def specs (collect-proc-specs args))
   (tuple $?* ;specs))
 
-(def- emsg "command %p failed, exit code %j")
+(def- emsg "command(s) %p failed, exit code(s) %j")
 
 (defn $*
   [& specs]

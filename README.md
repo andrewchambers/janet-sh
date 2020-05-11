@@ -1,5 +1,7 @@
 # janet-sh
 
+The rationale and design is partially covered in a [blog post](https://acha.ninja/blog/dsl_for_shell_scripting/)
+
 ## Quick examples
 
 ```

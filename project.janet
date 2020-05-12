@@ -13,5 +13,4 @@
   :source ["_sh.c"])
 
 (declare-source
-  :name "sh"
   :source ["sh.janet"])

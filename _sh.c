@@ -55,5 +55,5 @@ static const JanetReg cfuns[] = {
 };
 
 JANET_MODULE_ENTRY(JanetTable *env) {
-    janet_cfuns(env, "_sh", cfuns);
+    janet_cfuns(env, "sh", cfuns);
 }

@@ -197,6 +197,7 @@
   specs)
 
 (defmacro run
+  "Run a process and get its exit code."
   [& args]
   (def specs (collect-proc-specs args))
   (tuple run* ;specs))
@@ -221,6 +222,7 @@
   nil)
 
 (defmacro $
+  "Run a process and abort on error."
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $* ;specs))
@@ -234,6 +236,7 @@
   (string out))
 
 (defmacro $<
+  "Run a process with output as a string."
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $<* ;specs))
@@ -257,6 +260,7 @@
   (string out))
 
 (defmacro $<_
+  "Run a process with output as a string with any trailing newlines trimmed."
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $<_* ;specs))

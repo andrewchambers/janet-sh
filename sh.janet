@@ -2,6 +2,13 @@
 (import _sh :prefix "" :export true)
 
 (defn run*
+  ``
+  It's a non-macro version of run that accepts an array of arguments.
+
+  Each argument is a string.
+
+  Example: (sh/run* ["ls" "-lh"])
+  ``
   [& specs]
   # All procs in pipeline
   (def procs @[])
@@ -203,6 +210,13 @@
   (tuple run* ;specs))
 
 (defn $?*
+  ``
+  It's a non-macro version of $? that accepts an array of arguments.
+
+  Each argument is a string.
+
+  Example: (sh/$?* ["ls" "-lh"])
+  ``
   [& specs]
   (def exit (run* ;specs))
   (all zero? exit))
@@ -215,6 +229,13 @@
 (def- emsg "command(s) %p failed, exit code(s) %j")
 
 (defn $*
+  ``
+  It's a non-macro version of $ that accepts an array of arguments.
+
+  Each argument is a string.
+
+  Example: (sh/$* ["ls" "-lh"])
+  ``
   [& specs]
   (def exit (run* ;specs))
   (unless (all zero? exit)
@@ -228,6 +249,13 @@
   (tuple $* ;specs))
 
 (defn $<*
+  ``
+  It's a non-macro version of $< that accepts an array of arguments.
+
+  Each argument is a string.
+
+  Example: (sh/$<* ["ls" "-lh"])
+  ``
   [& specs]
   (def out @"")
   (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
@@ -242,6 +270,13 @@
   (tuple $<* ;specs))
 
 (defn $<_*
+  ``
+  It's a non-macro version of $<_ that accepts an array of arguments.
+
+  Each argument is a string.
+
+  Example: (sh/$<_* ["ls" "-lh"])
+  ``
   [& specs]
   (def out @"")
   (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))

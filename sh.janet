@@ -3,9 +3,9 @@
 
 (defn run*
   ``
-  It's a non-macro version of run that accepts an array of arguments.
+  A function version of `run` that accepts a tuple or array of strings.
 
-  Each argument is a string.
+  Returns an array with exit code.
 
   Example: (sh/run* ["ls" "-lh"])
   ``
@@ -204,16 +204,22 @@
   specs)
 
 (defmacro run
-  "Run a process and get its exit code."
+  ``
+  Run a process and get its exit code.
+
+  Returns an array with exit code.
+
+  Example: (sh/run "ls" "-lh")
+  ``
   [& args]
   (def specs (collect-proc-specs args))
   (tuple run* ;specs))
 
 (defn $?*
   ``
-  It's a non-macro version of $? that accepts an array of arguments.
+  A function version of `$?` that accepts a tuple or an array of strings.
 
-  Each argument is a string.
+  Returns a boolean indicating success or failure.
 
   Example: (sh/$?* ["ls" "-lh"])
   ``
@@ -222,6 +228,13 @@
   (all zero? exit))
 
 (defmacro $?
+  ``
+  Run a process and determine whether it succeeded.
+
+  Returns a boolean indicating success or failure.
+
+  Example: (sh/$? "ls" "-lh")
+  ``
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $?* ;specs))
@@ -230,9 +243,9 @@
 
 (defn $*
   ``
-  It's a non-macro version of $ that accepts an array of arguments.
+  A function version of `$` that accepts a tuple or an array of strings.
 
-  Each argument is a string.
+  Returns nil for success, aborts on error.
 
   Example: (sh/$* ["ls" "-lh"])
   ``
@@ -243,16 +256,22 @@
   nil)
 
 (defmacro $
-  "Run a process and abort on error."
+  ``
+  Run a process and abort on error.
+
+  Returns nil for success, aborts on error.
+
+  Example: (sh/$ "ls" "-lh")
+  ``
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $* ;specs))
 
 (defn $<*
   ``
-  It's a non-macro version of $< that accepts an array of arguments.
+  A function version of `$<` that accepts a tuple or an array of strings.
 
-  Each argument is a string.
+  Returns a string.
 
   Example: (sh/$<* ["ls" "-lh"])
   ``
@@ -264,16 +283,22 @@
   (string out))
 
 (defmacro $<
-  "Run a process with output as a string."
+  ``
+  Run a process with output as a string.
+
+  Returns a string.
+
+  Example: (sh/$< "ls" "-lh")
+  ``
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $<* ;specs))
 
 (defn $<_*
   ``
-  It's a non-macro version of $<_ that accepts an array of arguments.
+  A function version of `$<_` that accepts a tuple or an array of strings.
 
-  Each argument is a string.
+  Returns a string.
 
   Example: (sh/$<_* ["ls" "-lh"])
   ``
@@ -295,7 +320,13 @@
   (string out))
 
 (defmacro $<_
-  "Run a process with output as a string with any trailing newlines trimmed."
+  ``
+  Run a process with output as a string with any trailing newlines trimmed.
+
+  Returns a string.
+
+  Example: (sh/$<_ "ls" "-lh")
+  ``
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $<_* ;specs))

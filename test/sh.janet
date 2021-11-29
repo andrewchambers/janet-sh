@@ -84,3 +84,9 @@
 
 (assert (= (sh/$<_ echo ;[1 2 3])
            "1 2 3"))
+
+(buffer/clear out-buf)
+(def prog-res (sh/prog (echo hello > ,out-buf)
+                       (echo bye >> ,out-buf)))
+(assert (all zero? prog-res))
+(assert (deep= out-buf @"hello\nbye\n"))

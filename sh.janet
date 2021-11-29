@@ -215,6 +215,20 @@
   (def specs (collect-proc-specs args))
   (tuple run* ;specs))
 
+(defmacro prog
+  ``
+  Run shell commands in sequence.
+
+  Returns an array of exit codes.
+
+  Example: (sh/prog (pwd)
+                    (ls -a))
+  ``
+  [& args]
+  ~(mapcat array/peek
+    ,(map (fn [arg]
+      ~(sh/run* ,;(collect-proc-specs arg))) args)))
+
 (defn $?*
   ``
   A function version of `$?` that accepts a tuple or an array of strings.

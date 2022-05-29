@@ -1,5 +1,6 @@
 (declare-project
   :name "sh"
+  :description "Shorthand shell-like functions for Janet."
   :author "Andrew Chambers"
   :license "MIT"
   :url "https://github.com/andrewchambers/janet-sh"

@@ -7,7 +7,7 @@
 
   Returns an array with exit code.
 
-  Example: (sh/run* ["ls" "-lh"])
+  Example: `(sh/run* ["ls" "-lh"])`
   ``
   [& specs]
   # All procs in pipeline
@@ -17,7 +17,7 @@
   # List of functions run, even on error.
   (def finish @[])
   (def buf-mapping @{})
-  
+
   (defn buf-to-out-file
     [buf-mapping buf]
     (if-let [tmpf (get buf-mapping buf)]
@@ -33,7 +33,7 @@
         tmpf)))
 
   (defn coerce-file [op f]
-    (cond 
+    (cond
       (buffer? f)
         (case op
           :>
@@ -80,7 +80,7 @@
     (case op
       :>
         (array/push file-actions [:dup2 (coerce-file :> b) a])
-      :>> 
+      :>>
         (array/push file-actions [:dup2 (coerce-file :>> b) a])
       :<
         (array/push file-actions [:dup2 (coerce-file :< b) a])
@@ -157,7 +157,7 @@
         (spawn-spec (first specs))
         (do
           (var [rp wp] (pipe))
-          
+
           # Start of pipeline
           (spawn-spec (tuple ;(first specs) :> [stdout wp]))
           (file/close wp)
@@ -174,7 +174,7 @@
           # Pipeline end.
           (spawn-spec (tuple ;(last specs) :< [stdin rp]))
           (file/close rp)))
-      
+
       (each f post-spawn (f))
       (map posix-spawn/wait procs))))
 
@@ -209,7 +209,7 @@
 
   Returns an array with exit code.
 
-  Example: (sh/run "ls" "-lh")
+  Example: `(sh/run "ls" "-lh")`
   ``
   [& args]
   (def specs (collect-proc-specs args))
@@ -221,7 +221,7 @@
 
   Returns a boolean indicating success or failure.
 
-  Example: (sh/$?* ["ls" "-lh"])
+  Example: `(sh/$?* ["ls" "-lh"])`
   ``
   [& specs]
   (def exit (run* ;specs))
@@ -233,7 +233,7 @@
 
   Returns a boolean indicating success or failure.
 
-  Example: (sh/$? "ls" "-lh")
+  Example: `(sh/$? "ls" "-lh")`
   ``
   [& args]
   (def specs (collect-proc-specs args))
@@ -247,7 +247,7 @@
 
   Returns nil for success, aborts on error.
 
-  Example: (sh/$* ["ls" "-lh"])
+  Example: `(sh/$* ["ls" "-lh"])`
   ``
   [& specs]
   (def exit (run* ;specs))
@@ -261,7 +261,7 @@
 
   Returns nil for success, aborts on error.
 
-  Example: (sh/$ "ls" "-lh")
+  Example: `(sh/$ "ls" "-lh")`
   ``
   [& args]
   (def specs (collect-proc-specs args))
@@ -273,7 +273,7 @@
 
   Returns a string.
 
-  Example: (sh/$<* ["ls" "-lh"])
+  Example: `(sh/$<* ["ls" "-lh"])`
   ``
   [& specs]
   (def out @"")
@@ -288,7 +288,7 @@
 
   Returns a string.
 
-  Example: (sh/$< "ls" "-lh")
+  Example: `(sh/$< "ls" "-lh")`
   ``
   [& args]
   (def specs (collect-proc-specs args))
@@ -300,7 +300,7 @@
 
   Returns a string.
 
-  Example: (sh/$<_* ["ls" "-lh"])
+  Example: `(sh/$<_* ["ls" "-lh"])`
   ``
   [& specs]
   (def out @"")
@@ -325,7 +325,7 @@
 
   Returns a string.
 
-  Example: (sh/$<_ "ls" "-lh")
+  Example: `(sh/$<_ "ls" "-lh")`
   ``
   [& args]
   (def specs (collect-proc-specs args))

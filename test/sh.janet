@@ -84,3 +84,6 @@
 
 (assert (= (sh/$<_ echo ;[1 2 3])
            "1 2 3"))
+
+(assert (= (sh/$< sh -c "echo out; echo err >&2" > [stderr stdout])
+  "out\nerr\n"))

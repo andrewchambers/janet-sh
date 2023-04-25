@@ -277,7 +277,7 @@
   ``
   [& specs]
   (def out @"")
-  (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
+  (def exit (run* ;(tuple/slice specs 0 -2) (tuple :> out ;(last specs))))
   (unless (all zero? exit)
     (error (string/format emsg specs exit)))
   (string out))
@@ -304,7 +304,7 @@
   ``
   [& specs]
   (def out @"")
-  (def exit (run* ;(tuple/slice specs 0 -2) (tuple ;(last specs) :> out)))
+  (def exit (run* ;(tuple/slice specs 0 -2) (tuple :> out ;(last specs))))
   (unless (all zero? exit)
     (error (string/format emsg specs exit)))
   (defn should-trim? [c]

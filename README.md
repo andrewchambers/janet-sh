@@ -4,7 +4,7 @@ The rationale and design is partially covered in a [blog post](https://acha.ninj
 
 ## Quick examples
 
-```
+```janet
 (import sh)
 
 # raise an error on failure.
@@ -25,4 +25,11 @@ The rationale and design is partially covered in a [blog post](https://acha.ninj
 (match (sh/run yes | head -n5)
   [0 0] :ok)
 
+# run a command in a real shell (your system's `sh`)
+(sh/sh cd /tmp && git clone https://github.com/andrewchambers/janet-sh)
+
+# use shell variables in a real shell
+(sh/sh<
+  if [ "${USER}" = ,(os/getenv "USER") ];
+  then echo "it's \"me\""; else echo "not me"; fi)
 ```

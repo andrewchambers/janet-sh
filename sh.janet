@@ -134,7 +134,7 @@
                 (array/push args (string (array/pop args) arg))
                 (set state :start))
             a
-              (error (string/format "can only concatinate strings symbols or numbers, not %v" a)))
+              (error (string/format "can only concatenate strings symbols or numbers, not %v" a)))
         (error nil)))
     (cond state
       :start
@@ -178,6 +178,12 @@
       (each f post-spawn (f))
       (map posix-spawn/wait procs))))
 
+(defn- escape [str]
+  (->> str
+    (string/replace-all ` ` `\ `)
+    (string/replace-all `"` `\"`)
+    (string/replace-all `'` `\'`)))
+
 (defn- collect-proc-specs
   [forms]
   (def specs @[@[]])
@@ -201,6 +207,35 @@
       (or (number? f) (boolean? f))
         (array/push (last specs) (string f))
       (array/push (last specs) f)))
+  specs)
+
+(defn- collect-proc-specs-subshell
+  [forms]
+  (def specs @[])
+  (def q (reverse forms))
+  (while (not (empty? q))
+    (def f (array/pop q))
+    (cond
+      (tuple? f)
+        (case (f 0)
+          'unquote
+            (array/push specs (f 1))
+          'splice
+            (do
+              (array/push specs ";")
+              (array/push q (f 1)))
+          'short-fn
+            (do
+              (array/push specs "|")
+              (array/push q (f 1)))
+          (do
+            (array/push specs "[")
+            (array/push q "]" ;(reverse f))))
+      (or (symbol? f) (number? f) (boolean? f))
+        (array/push specs (string f))
+      (string? f)
+        (array/push specs (escape f))
+      (array/push specs f)))
   specs)
 
 (defmacro run
@@ -330,3 +365,27 @@
   [& args]
   (def specs (collect-proc-specs args))
   (tuple $<_* ;specs))
+
+(defmacro sh
+  ``
+  Run a shell and abort on error.
+
+  Returns nil for success, aborts on error.
+
+  Example: `(sh/sh "echo" "$PWD")`
+  ``
+  [& args]
+  (def specs (collect-proc-specs-subshell args))
+  ~(,$* ["sh" "-c" (string/join (map |(if (symbol? $) (eval $) $) ,specs) " ")]))
+
+(defmacro sh<
+  ``
+  Run a shell with output as a string.
+
+  Returns a string.
+
+  Example: `(sh/sh< "echo" "$PWD")`
+  ``
+  [& args]
+  (def specs (collect-proc-specs-subshell args))
+  ~(,$<* ["sh" "-c" (string/join (map |(if (symbol? $) (eval $) $) ,specs) " ")]))

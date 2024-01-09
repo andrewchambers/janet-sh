@@ -87,3 +87,15 @@
 
 (assert (= (sh/$< sh -c "echo out; echo err >&2" > [stderr stdout])
   "out\nerr\n"))
+
+(assert (= (sh/sh cd /)
+           nil))
+
+(assert (= (sh/sh< echo $PWD)
+           (string (os/getenv "PWD") "\n")))
+
+(assert (= (sh/sh< echo $0)
+           "sh\n"))
+
+(assert (= (sh/sh< echo `hello "world"`)
+           "hello \"world\"\n"))
